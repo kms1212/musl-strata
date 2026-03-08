@@ -1,11 +1,26 @@
 #include <sys/mman.h>
-#include "syscall.h"
 
-int mlock(const void *addr, size_t len)
-{
-#ifdef SYS_mlock
-	return syscall(SYS_mlock, addr, len);
-#else
-	return syscall(SYS_mlock2, addr, len, 0);
-#endif
+#include <limits.h>
+
+#include <strata/handle.h>
+#include <strata/status.h>
+
+#include "sidl/process.h"
+
+extern StHandle __process_handle;
+
+int mlock(const void *addr, size_t len) {
+  StStatus status;
+
+  uint64_t vpn;
+  uint64_t page_count;
+
+  vpn = (uint64_t)addr / PAGE_SIZE;
+  page_count = (len + PAGE_SIZE - 1) / PAGE_SIZE;
+
+  status = StIfPrc_LockMemory(__process_handle, vpn, page_count, 0);
+  if (!CHECK_SUCCESS(status)) {
+    return -1;
+  }
+  return 0;
 }

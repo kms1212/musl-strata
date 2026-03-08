@@ -43,6 +43,8 @@ Some influential environment variables:
   CFLAGS                  C compiler flags [-Os -pipe ...]
   CROSS_COMPILE           prefix for cross compiler and tools [none]
   LIBCC                   compiler runtime library [detected]
+  SIDLC                   SIDL compiler command [detected]
+  SIDLC_LIBDIR            SIDL compiler library path [detected]
 
 Use these variables to override the choices made by configure.
 
@@ -63,6 +65,7 @@ fail () { echo "$*" ; exit 1 ; }
 fnmatch () { eval "case \"\$2\" in $1) return 0 ;; *) return 1 ;; esac" ; }
 cmdexists () { type "$1" >/dev/null 2>&1 ; }
 trycc () { test -z "$CC" && cmdexists "$1" && CC=$1 ; }
+trysidlc () { test -z "$SIDLC" && cmdexists "$1" && SIDLC=$1 ; }
 
 stripdir () {
 while eval "fnmatch '*/' \"\${$1}\"" ; do eval "$1=\${$1%/}" ; done
@@ -115,6 +118,7 @@ fi
 
 # Beginning of actual script
 
+SIDLC_LIBDIR=
 CFLAGS_C99FSE=
 CFLAGS_AUTO=
 CFLAGS_MEMOPS=
@@ -185,6 +189,8 @@ CPPFLAGS=*) CPPFLAGS=${arg#*=} ;;
 LDFLAGS=*) LDFLAGS=${arg#*=} ;;
 CROSS_COMPILE=*) CROSS_COMPILE=${arg#*=} ;;
 LIBCC=*) LIBCC=${arg#*=} ;;
+SIDLC=*) SIDLC=${arg#*=} ;;
+SIDLC_LIBDIR=*) SIDLC_LIBDIR=${arg#*=} ;;
 *=*) ;;
 *) build=$arg ; target=$arg ;;
 esac
@@ -233,6 +239,35 @@ test "$target" && \
 test "$target" != "$build" && \
 test -z "$CROSS_COMPILE" && \
 CROSS_COMPILE="$target-"
+
+#
+# Find a SIDL compiler to use
+#
+printf "checking for SIDL compiler... "
+trysidlc sidlc
+printf "%s\n" "$SIDLC"
+test -n "$SIDLC" || { echo "$0: cannot find a SIDL compiler" ; exit 1 ; }
+
+printf "checking whether SIDL compiler works... "
+if output=$($SIDLC --version) ; then
+printf "yes\n"
+else
+printf "no; compiler output follows:\n%s\n" "$output"
+exit 1
+fi
+
+#
+# Figure out where is the SIDL library path
+#
+printf "checking where the SIDL library directory is... "
+test -z "$SIDLC_LIBDIR" && \
+SIDLC_LIBDIR="$(basename $(which $SIDLC))/../lib/sidlc"
+if test -d "$SIDLC_LIBDIR" ; then
+printf "%s\n" "$SIDLC_LIBDIR"
+else
+printf "no\n no such directory: %s\n" "$SIDLC_LIBDIR"
+exit 1
+fi
 
 #
 # Find a C compiler to use
@@ -615,7 +650,7 @@ tryldflag LDFLAGS_AUTO -Wl,--exclude-libs=ALL
 tryldflag LDFLAGS_AUTO -Wl,--dynamic-list="$srcdir/dynamic.list"
 
 # Find compiler runtime library
-test -z "$LIBCC" && tryldflag LIBCC -lgcc && tryldflag LIBCC -lgcc_eh
+test -z "$LIBCC" && tryldflag LIBCC -lgcc && tryldflag LIBCC -lgcc_eh && tryldflag LIBCC -lstrata
 test -z "$LIBCC" && tryldflag LIBCC -lcompiler_rt
 test -z "$LIBCC" && try_libcc=`$CC -print-libgcc-file-name 2>/dev/null` \
                  && tryldflag LIBCC "$try_libcc"
@@ -814,6 +849,8 @@ bindir = $bindir
 libdir = $libdir
 includedir = $includedir
 syslibdir = $syslibdir
+SIDLC = $SIDLC
+SIDLC_LIBDIR = $SIDLC_LIBDIR
 CC = $CC
 CFLAGS = $CFLAGS
 CFLAGS_AUTO = $CFLAGS_AUTO

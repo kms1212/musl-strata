@@ -18,6 +18,11 @@ libdir = $(prefix)/lib
 syslibdir = /lib
 
 MALLOC_DIR = mallocng
+INTERFACE_DEFS = process.sidl thread.sidl directory.sidl fileinfo.sidl byte_stream.sidl
+SIDL_GEN_SRCS = $(patsubst %.sidl,gen/sidl/%.c,$(INTERFACE_DEFS))
+SIDL_GEN_HDRS = $(patsubst %.sidl,gen/sidl/%.h,$(INTERFACE_DEFS))
+SIDL_OBJS = $(patsubst %.sidl,gen/sidl/%.o,$(INTERFACE_DEFS))
+SIDL_LOBJS = $(patsubst %.sidl,gen/sidl/%.lo,$(INTERFACE_DEFS))
 SRC_DIRS = $(addprefix $(srcdir)/,src/* src/malloc/$(MALLOC_DIR) crt ldso $(COMPAT_SRC_DIRS))
 BASE_GLOBS = $(addsuffix /*.c,$(SRC_DIRS))
 ARCH_GLOBS = $(addsuffix /$(ARCH)/*.[csS],$(SRC_DIRS))
@@ -26,32 +31,35 @@ ARCH_SRCS = $(sort $(wildcard $(ARCH_GLOBS)))
 BASE_OBJS = $(patsubst $(srcdir)/%,%.o,$(basename $(BASE_SRCS)))
 ARCH_OBJS = $(patsubst $(srcdir)/%,%.o,$(basename $(ARCH_SRCS)))
 REPLACED_OBJS = $(sort $(subst /$(ARCH)/,/,$(ARCH_OBJS)))
-ALL_OBJS = $(addprefix obj/, $(filter-out $(REPLACED_OBJS), $(sort $(BASE_OBJS) $(ARCH_OBJS))))
+ALL_OBJS = $(addprefix obj/, $(filter-out $(REPLACED_OBJS), $(sort $(SIDL_OBJS) $(BASE_OBJS) $(ARCH_OBJS))))
 
-LIBC_OBJS = $(filter obj/src/%,$(ALL_OBJS)) $(filter obj/compat/%,$(ALL_OBJS))
+LIBC_OBJS = $(filter obj/src/%,$(ALL_OBJS)) $(filter obj/compat/%,$(ALL_OBJS)) $(filter obj/gen/%,$(ALL_OBJS))
 LDSO_OBJS = $(filter obj/ldso/%,$(ALL_OBJS:%.o=%.lo))
 CRT_OBJS = $(filter obj/crt/%,$(ALL_OBJS))
 
+
 AOBJS = $(LIBC_OBJS)
 LOBJS = $(LIBC_OBJS:.o=.lo)
+GENH_SIDL = $(addprefix obj/, $(SIDL_GEN_HDRS))
 GENH = obj/include/bits/alltypes.h obj/include/bits/syscall.h
 GENH_INT = obj/src/internal/version.h
 IMPH = $(addprefix $(srcdir)/, src/internal/stdio_impl.h src/internal/pthread_impl.h src/internal/locale_impl.h src/internal/libc.h)
 
 LDFLAGS =
 LDFLAGS_AUTO =
-LIBCC = -lgcc
+LIBCC = -lgcc -lstrata
 CPPFLAGS =
 CFLAGS =
 CFLAGS_AUTO = -Os -pipe
 CFLAGS_C99FSE = -std=c99 -ffreestanding -nostdinc 
 
 CFLAGS_ALL = $(CFLAGS_C99FSE)
-CFLAGS_ALL += -D_XOPEN_SOURCE=700 -I$(srcdir)/arch/$(ARCH) -I$(srcdir)/arch/generic -Iobj/src/internal -I$(srcdir)/src/include -I$(srcdir)/src/internal -Iobj/include -I$(srcdir)/include
+CFLAGS_ALL += -D_XOPEN_SOURCE=700 -I$(srcdir)/arch/$(ARCH) -I$(srcdir)/arch/generic -Iobj/src/internal -I$(srcdir)/src/include -I$(srcdir)/src/internal -Iobj/include -I$(srcdir)/include -Iobj/gen
 CFLAGS_ALL += $(CPPFLAGS) $(CFLAGS_AUTO) $(CFLAGS)
 
 LDFLAGS_ALL = $(LDFLAGS_AUTO) $(LDFLAGS)
 
+LD      = $(CROSS_COMPILE)ld
 AR      = $(CROSS_COMPILE)ar
 RANLIB  = $(CROSS_COMPILE)ranlib
 INSTALL = $(srcdir)/tools/install.sh
@@ -67,6 +75,7 @@ CRT_LIBS = $(addprefix lib/,$(notdir $(CRT_OBJS)))
 STATIC_LIBS = lib/libc.sl
 SHARED_LIBS = lib/libc.dl
 TOOL_LIBS = lib/musl-gcc.specs
+ALL_INTERFACES = $(GENH_SIDL)
 ALL_LIBS = $(CRT_LIBS) $(STATIC_LIBS) $(SHARED_LIBS) $(EMPTY_LIBS) $(TOOL_LIBS)
 ALL_TOOLS = obj/musl-gcc
 
@@ -86,11 +95,10 @@ all:
 
 else
 
-all: $(ALL_LIBS) $(ALL_TOOLS)
+all: $(ALL_INTERFACES) $(ALL_LIBS) $(ALL_TOOLS)
+OBJ_DIRS = $(sort $(patsubst %/,%,$(dir $(ALL_LIBS) $(ALL_TOOLS) $(ALL_OBJS) $(GENH) $(GENH_SIDL) $(GENH_INT))) obj/include obj/gen/sidl)
 
-OBJ_DIRS = $(sort $(patsubst %/,%,$(dir $(ALL_LIBS) $(ALL_TOOLS) $(ALL_OBJS) $(GENH) $(GENH_INT))) obj/include)
-
-$(ALL_LIBS) $(ALL_TOOLS) $(ALL_OBJS) $(ALL_OBJS:%.o=%.lo) $(GENH) $(GENH_INT): | $(OBJ_DIRS)
+$(ALL_LIBS) $(ALL_TOOLS) $(ALL_OBJS) $(ALL_OBJS:%.o=%.lo) $(GENH) $(GENH_SIDL) $(GENH_INT): | $(OBJ_DIRS)
 
 $(OBJ_DIRS):
 	mkdir -p $@
@@ -104,6 +112,9 @@ obj/include/bits/syscall.h: $(srcdir)/arch/$(ARCH)/bits/syscall.h.in
 
 obj/src/internal/version.h: $(wildcard $(srcdir)/VERSION $(srcdir)/.git)
 	printf '#define VERSION "%s"\n' "$$(cd $(srcdir); sh tools/version.sh)" > $@
+
+obj/gen/sidl/%.c obj/gen/sidl/%.h: $(SIDLC_LIBDIR)/interfaces/%.sidl
+	$(SIDLC) --lang=c --arch=$(ARCH) --weak --user-src=obj/gen/sidl/$*.c --header=obj/gen/sidl/$*.h $<
 
 obj/src/internal/version.o obj/src/internal/version.lo: obj/src/internal/version.h
 
@@ -140,13 +151,19 @@ else
 	AS_CMD = $(CC_CMD)
 endif
 
+obj/gen/sidl/%.o: obj/gen/sidl/%.c $(GENH) $(GENH_SIDL) $(IMPH)
+	$(CC_CMD)
+
+obj/gen/sidl/%.lo: obj/gen/sidl/%.c $(GENH) $(GENH_SIDL) $(IMPH)
+	$(CC_CMD)
+
 obj/%.o: $(srcdir)/%.s
 	$(AS_CMD)
 
 obj/%.o: $(srcdir)/%.S
 	$(CC_CMD)
 
-obj/%.o: $(srcdir)/%.c $(GENH) $(IMPH)
+obj/%.o: $(srcdir)/%.c $(GENH) $(GENH_SIDL) $(IMPH)
 	$(CC_CMD)
 
 obj/%.lo: $(srcdir)/%.s
@@ -155,7 +172,7 @@ obj/%.lo: $(srcdir)/%.s
 obj/%.lo: $(srcdir)/%.S
 	$(CC_CMD)
 
-obj/%.lo: $(srcdir)/%.c $(GENH) $(IMPH)
+obj/%.lo: $(srcdir)/%.c $(GENH) $(GENH_SIDL) $(IMPH)
 	$(CC_CMD)
 
 lib/libc.dl: $(LOBJS) $(LDSO_OBJS)
@@ -165,12 +182,13 @@ lib/libc.dl: $(LOBJS) $(LDSO_OBJS)
 
 lib/libc.sl: $(AOBJS)
 	rm -f $@
-	$(AR) rc $@ $(AOBJS)
-	$(RANLIB) $@
+	$(LD) -r -o $@ $(AOBJS)
 
 $(EMPTY_LIBS):
 	rm -f $@
-	$(AR) rc $@
+	echo "static int __$(patsubst lib/%.sl,%,$@)_dummy;" | $(CC) $(CFLAGS_ALL) -xc -c -o $@.o -
+	$(LD) -r -o $@ $@.o
+	rm $@.o
 
 lib/%.o: obj/crt/$(ARCH)/%.o
 	cp $< $@

@@ -7,6 +7,7 @@
 #include <strata/handle.h>
 
 #include "sidl/process.h"
+#include "strata_fd.h"
 
 static void dummy(void) {}
 weak_alias(dummy, _init);
@@ -99,6 +100,7 @@ void __init_libc(char **envp, char *pn) {
       __progname = pn + i + 1;
 
   __init_libc_handles();
+  __strata_fd_init();
   __init_tls(aux);
   __init_ssp((void *)aux[AT_RANDOM]);
 

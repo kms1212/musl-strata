@@ -19,10 +19,11 @@ syslibdir = /lib
 
 MALLOC_DIR = mallocng
 INTERFACE_DEFS = process.sidl thread.sidl directory.sidl fileinfo.sidl byte_stream.sidl
-SIDL_GEN_SRCS = $(patsubst %.sidl,gen/sidl/%.c,$(INTERFACE_DEFS))
-SIDL_GEN_HDRS = $(patsubst %.sidl,gen/sidl/%.h,$(INTERFACE_DEFS))
-SIDL_OBJS = $(patsubst %.sidl,gen/sidl/%.o,$(INTERFACE_DEFS))
-SIDL_LOBJS = $(patsubst %.sidl,gen/sidl/%.lo,$(INTERFACE_DEFS))
+SIDL_GEN_USER_SRCS = $(patsubst %.sidl,gen/sidl/%.c,$(INTERFACE_DEFS))
+SIDL_GEN_TYPE_HDRS = $(patsubst %.sidl,gen/sidl/%.types.h,$(INTERFACE_DEFS))
+SIDL_GEN_USER_HDRS = $(patsubst %.sidl,gen/sidl/%.h,$(INTERFACE_DEFS))
+SIDL_OBJS = $(SIDL_GEN_USER_SRCS:%.c=%.o)
+SIDL_LOBJS = $(SIDL_GEN_USER_SRCS:%.c=%.lo)
 SRC_DIRS = $(addprefix $(srcdir)/,src/* src/malloc/$(MALLOC_DIR) crt ldso $(COMPAT_SRC_DIRS))
 BASE_GLOBS = $(addsuffix /*.c,$(SRC_DIRS))
 ARCH_GLOBS = $(addsuffix /$(ARCH)/*.[csS],$(SRC_DIRS))
@@ -40,7 +41,7 @@ CRT_OBJS = $(filter obj/crt/%,$(ALL_OBJS))
 
 AOBJS = $(LIBC_OBJS)
 LOBJS = $(LIBC_OBJS:.o=.lo)
-GENH_SIDL = $(addprefix obj/, $(SIDL_GEN_HDRS))
+GENH_SIDL = $(addprefix obj/, $(SIDL_GEN_TYPE_HDRS) $(SIDL_GEN_USER_HDRS))
 GENH = obj/include/bits/alltypes.h obj/include/bits/syscall.h
 GENH_INT = obj/src/internal/version.h
 IMPH = $(addprefix $(srcdir)/, src/internal/stdio_impl.h src/internal/pthread_impl.h src/internal/locale_impl.h src/internal/libc.h)
@@ -113,8 +114,8 @@ obj/include/bits/syscall.h: $(srcdir)/arch/$(ARCH)/bits/syscall.h.in
 obj/src/internal/version.h: $(wildcard $(srcdir)/VERSION $(srcdir)/.git)
 	printf '#define VERSION "%s"\n' "$$(cd $(srcdir); sh tools/version.sh)" > $@
 
-obj/gen/sidl/%.c obj/gen/sidl/%.h: $(SIDLC_LIBDIR)/interfaces/%.sidl
-	$(SIDLC) --lang=c --arch=$(ARCH) --weak --user-src=obj/gen/sidl/$*.c --header=obj/gen/sidl/$*.h $<
+obj/gen/sidl/%.c obj/gen/sidl/%.types.h obj/gen/sidl/%.h: $(SIDLC_LIBDIR)/interfaces/%.sidl
+	$(SIDLC) --lang=c --arch=$(ARCH) --weak --type-header=obj/gen/sidl/$*.types.h --user-header=obj/gen/sidl/$*.h --user-header-type-path=$*.types.h --user-src=obj/gen/sidl/$*.c --user-src-header-path=$*.h $<
 
 obj/src/internal/version.o obj/src/internal/version.lo: obj/src/internal/version.h
 

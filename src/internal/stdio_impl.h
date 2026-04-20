@@ -1,8 +1,8 @@
 #ifndef _STDIO_IMPL_H
 #define _STDIO_IMPL_H
 
+#include <sys/types.h>
 #include <stdio.h>
-#include "syscall.h"
 
 #define UNGET 8
 

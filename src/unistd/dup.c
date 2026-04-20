@@ -1,7 +1,7 @@
 #include <unistd.h>
-#include "syscall.h"
+#include "strata_fd.h"
 
 int dup(int fd)
 {
-	return syscall(SYS_dup, fd);
+	return __strata_fd_dup(fd);
 }

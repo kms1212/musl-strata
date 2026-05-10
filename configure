@@ -44,7 +44,6 @@ Some influential environment variables:
   CROSS_COMPILE           prefix for cross compiler and tools [none]
   LIBCC                   compiler runtime library [detected]
   SIDLC                   SIDL compiler command [detected]
-  SIDLC_LIBDIR            SIDL compiler library path [detected]
 
 Use these variables to override the choices made by configure.
 
@@ -118,7 +117,6 @@ fi
 
 # Beginning of actual script
 
-SIDLC_LIBDIR=
 CFLAGS_C99FSE=
 CFLAGS_AUTO=
 CFLAGS_MEMOPS=
@@ -190,7 +188,6 @@ LDFLAGS=*) LDFLAGS=${arg#*=} ;;
 CROSS_COMPILE=*) CROSS_COMPILE=${arg#*=} ;;
 LIBCC=*) LIBCC=${arg#*=} ;;
 SIDLC=*) SIDLC=${arg#*=} ;;
-SIDLC_LIBDIR=*) SIDLC_LIBDIR=${arg#*=} ;;
 *=*) ;;
 *) build=$arg ; target=$arg ;;
 esac
@@ -253,19 +250,6 @@ if output=$($SIDLC --version) ; then
 printf "yes\n"
 else
 printf "no; compiler output follows:\n%s\n" "$output"
-exit 1
-fi
-
-#
-# Figure out where is the SIDL library path
-#
-printf "checking where the SIDL library directory is... "
-test -z "$SIDLC_LIBDIR" && \
-SIDLC_LIBDIR="$(basename $(which $SIDLC))/../lib/sidlc"
-if test -d "$SIDLC_LIBDIR" ; then
-printf "%s\n" "$SIDLC_LIBDIR"
-else
-printf "no\n no such directory: %s\n" "$SIDLC_LIBDIR"
 exit 1
 fi
 
@@ -850,7 +834,6 @@ libdir = $libdir
 includedir = $includedir
 syslibdir = $syslibdir
 SIDLC = $SIDLC
-SIDLC_LIBDIR = $SIDLC_LIBDIR
 CC = $CC
 CFLAGS = $CFLAGS
 CFLAGS_AUTO = $CFLAGS_AUTO

@@ -2,6 +2,7 @@
 #include "libc.h"
 #include <elf.h>
 #include <signal.h>
+#include <stdint.h>
 #include <unistd.h>
 
 #include <strata/handle.h>
@@ -19,6 +20,10 @@ static void dummy1(void *p) {}
 weak_alias(dummy1, __init_ssp);
 
 #define AUX_CNT 38
+
+#define MAKE_PROCESS_EXIT_STATUS(exit_code) \
+  MAKE_BASE_STATUS((uint8_t)(exit_code) != 0, STATUS_AREA_PROCESS_EXIT, \
+                   (StStatus)(uint8_t)(exit_code))
 
 StHandle __process_handle;
 StHandle __main_thread_handle;
@@ -122,6 +127,20 @@ weak_alias(libc_start_init, __libc_start_init);
 
 typedef int lsm2_fn(int (*)(int, char **, char **), int, char **);
 static lsm2_fn libc_start_main_stage2;
+static int (*posix_main)(int, char **, char **);
+
+static StStatus default_stmain(int argc, char **argv, char **envp) {
+  int exit_code;
+
+  if (!posix_main) {
+    return STATUS_ENTRY_NOT_FOUND;
+  }
+
+  exit_code = posix_main(argc, argv, envp);
+  return MAKE_PROCESS_EXIT_STATUS(exit_code);
+}
+
+weak_alias(default_stmain, stmain);
 
 int __libc_start_main(int (*main)(int, char **, char **), int argc, char **argv,
                       void (*init_dummy)(), void (*fini_dummy)(),
@@ -144,8 +163,9 @@ static int libc_start_main_stage2(int (*main)(int, char **, char **), int argc,
                                   char **argv) {
   char **envp = argv + argc + 1;
   __libc_start_init();
+  posix_main = main;
 
   /* Pass control to the application */
-  exit(main(argc, argv, envp));
+  __st_exit(stmain(argc, argv, envp));
   return 0;
 }

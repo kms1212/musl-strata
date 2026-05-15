@@ -14,6 +14,10 @@ weak_alias(dummy, _fini);
 
 extern weak hidden void (*const __fini_array_start)(void), (*const __fini_array_end)(void);
 
+#define MAKE_PROCESS_EXIT_STATUS(exit_code) \
+	MAKE_BASE_STATUS((uint8_t)(exit_code) != 0, STATUS_AREA_PROCESS_EXIT, \
+	                 (StStatus)(uint8_t)(exit_code))
+
 static void libc_exit_fini(void)
 {
 	uintptr_t a = (uintptr_t)&__fini_array_end;
@@ -26,8 +30,13 @@ weak_alias(libc_exit_fini, __libc_exit_fini);
 
 _Noreturn void exit(int code)
 {
+	__st_exit(MAKE_PROCESS_EXIT_STATUS((uint8_t)code));
+}
+
+_Noreturn void __st_exit(StStatus status)
+{
 	__funcs_on_exit();
 	__libc_exit_fini();
 	__stdio_exit();
-	_Exit(code);
+	__st_Exit(status);
 }

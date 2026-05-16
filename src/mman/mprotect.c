@@ -1,5 +1,6 @@
 #include <sys/mman.h>
 
+#include <errno.h>
 #include "libc.h"
 #include <limits.h>
 
@@ -33,7 +34,8 @@ int __mprotect(void *addr, size_t len, int prot) {
   status = StIfPrc_RemapMemory(__process_handle, page_count, page_count,
                                remap_flags, &vpn);
   if (!CHECK_SUCCESS(status)) {
-    return 1; // TODO: get proper errno
+    errno = status == STATUS_NOT_SUPPORTED ? ENOSYS : ENOMEM;
+    return -1;
   }
   return 0;
 }

@@ -114,8 +114,11 @@ obj/include/bits/syscall.h: $(srcdir)/arch/$(ARCH)/bits/syscall.h.in
 obj/src/internal/version.h: $(wildcard $(srcdir)/VERSION $(srcdir)/.git)
 	printf '#define VERSION "%s"\n' "$$(cd $(srcdir); sh tools/version.sh)" > $@
 
-obj/gen/sidl/%.c obj/gen/sidl/%.types.h obj/gen/sidl/%.h: $(srcdir)/sidl/%.sidl
-	$(SIDLC) --lang=c --arch=$(ARCH) --weak --type-header=obj/gen/sidl/$*.types.h --client-header=obj/gen/sidl/$*.h --client-header-type-path=$*.types.h --client-src=obj/gen/sidl/$*.c --client-src-header-path=$*.h $<
+obj/gen/sidl/%.sif: $(srcdir)/sidl/%.sidl
+	$(SIDLC) compile -o $@ $<
+
+obj/gen/sidl/%.c obj/gen/sidl/%.types.h obj/gen/sidl/%.h: obj/gen/sidl/%.sif
+	$(SIDLC) generate -a $(ARCH) -l c -m client -h obj/gen/sidl -s obj/gen/sidl/$*.c --weak $<
 
 obj/src/internal/version.o obj/src/internal/version.lo: obj/src/internal/version.h
 

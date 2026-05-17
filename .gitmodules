@@ -1,0 +1,3 @@
+[submodule "sidl"]
+	path = sidl
+	url = https://github.com/kms1212/Strata-sidl.git
